@@ -1,1 +1,7 @@
 scripts/
+.env
+*.db
+__pycache__/
+.venv/
+docs/
+data/
