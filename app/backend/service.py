@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo
 MAX_CATEGORIES = 30
 MAX_MAPPINGS = 500
 MAX_EXPENSES = 50_000
+MAX_FEEDBACK = 20
+MAX_FEEDBACK_LEN = 1000
 MAX_NAME_LEN = 30
 
 DEFAULT_CATEGORIES = ["Travel", "Food", "Groceries", "Other"]
@@ -151,6 +153,22 @@ def assign_category(
                 "INSERT OR REPLACE INTO word_map VALUES (?, ?, ?)", (user_id, word, category_id)
             )
     return cat["name"]
+
+
+def add_feedback(conn: sqlite3.Connection, user_id: int, message: str) -> None:
+    message = message.strip()
+    if not message or len(message) > MAX_FEEDBACK_LEN:
+        raise ValueError(f"Feedback must be 1-{MAX_FEEDBACK_LEN} characters")
+    count = conn.execute(
+        "SELECT COUNT(*) n FROM feedback WHERE telegram_user_id=?", (user_id,)
+    ).fetchone()["n"]
+    if count >= MAX_FEEDBACK:
+        raise LimitExceeded("feedback limit reached")
+    with conn:
+        conn.execute(
+            "INSERT INTO feedback (telegram_user_id, message, created_at_utc) VALUES (?, ?, ?)",
+            (user_id, message, _utc_str(None)),
+        )
 
 
 IST = ZoneInfo("Asia/Kolkata")

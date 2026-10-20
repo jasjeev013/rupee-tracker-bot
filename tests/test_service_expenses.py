@@ -81,3 +81,23 @@ def test_expense_cap(conn, monkeypatch):
     service.add_expense(conn, 1, "metro", 100)
     with pytest.raises(LimitExceeded):
         service.add_expense(conn, 1, "metro", 100)
+
+
+def test_add_feedback_stores_row_per_user(conn):
+    service.add_feedback(conn, 1, "  love it ")
+    rows = conn.execute("SELECT telegram_user_id, message FROM feedback").fetchall()
+    assert [(r["telegram_user_id"], r["message"]) for r in rows] == [(1, "love it")]
+
+
+def test_feedback_cap(conn, monkeypatch):
+    monkeypatch.setattr(service, "MAX_FEEDBACK", 2)
+    service.add_feedback(conn, 1, "a")
+    service.add_feedback(conn, 1, "b")
+    with pytest.raises(LimitExceeded):
+        service.add_feedback(conn, 1, "c")
+    service.add_feedback(conn, 2, "other user is unaffected")
+
+
+def test_feedback_rejects_blank(conn):
+    with pytest.raises(ValueError):
+        service.add_feedback(conn, 1, "   ")

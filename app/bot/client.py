@@ -48,3 +48,6 @@ class BackendClient:
 
     async def stats(self, user_id: int, period: str) -> dict:
         return await self._request("GET", "/stats", params={"user_id": user_id, "period": period})
+
+    async def feedback(self, user_id: int, message: str) -> dict:
+        return await self._request("POST", "/feedback", json={"user_id": user_id, "message": message})

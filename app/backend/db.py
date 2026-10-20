@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS expenses (
     category_id INTEGER REFERENCES categories(id),
     created_at_utc TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    created_at_utc TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_expenses_user_time
     ON expenses (telegram_user_id, created_at_utc);
 """

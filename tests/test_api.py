@@ -87,3 +87,24 @@ def test_rate_limit_returns_429(tmp_path):
     assert post_expense(c).status_code == 200
     assert post_expense(c).status_code == 429
     assert post_expense(c, user=2).status_code == 200
+
+
+def test_feedback_roundtrip_and_validation(client, tmp_path):
+    r = client.post("/feedback", json={"user_id": 1, "message": "nice bot"}, headers=H)
+    assert r.status_code == 200
+    import sqlite3
+
+    rows = sqlite3.connect(str(tmp_path / "t.db")).execute("SELECT telegram_user_id, message FROM feedback").fetchall()
+    assert rows == [(1, "nice bot")]
+    assert client.post("/feedback", json={"user_id": 1, "message": ""}, headers=H).status_code == 422
+    assert client.post("/feedback", json={"user_id": 1, "message": "  "}, headers=H).status_code == 422
+    assert client.post("/feedback", json={"user_id": 1, "message": "x" * 1001}, headers=H).status_code == 422
+    assert client.post("/feedback", json={"user_id": 1, "message": "x"}).status_code == 401
+
+
+def test_feedback_cap_returns_409(client, monkeypatch):
+    from app.backend import service
+
+    monkeypatch.setattr(service, "MAX_FEEDBACK", 1)
+    assert client.post("/feedback", json={"user_id": 1, "message": "a"}, headers=H).status_code == 200
+    assert client.post("/feedback", json={"user_id": 1, "message": "b"}, headers=H).status_code == 409

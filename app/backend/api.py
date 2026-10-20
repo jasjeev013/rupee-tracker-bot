@@ -28,6 +28,11 @@ class CategoryIn(BaseModel):
     name: str = Field(min_length=1, max_length=service.MAX_NAME_LEN * 2)
 
 
+class FeedbackIn(BaseModel):
+    user_id: int
+    message: str = Field(min_length=1, max_length=service.MAX_FEEDBACK_LEN)
+
+
 def create_app(settings: Settings, rate_limit: tuple[int, float] = (30, 60)) -> FastAPI:
     app = FastAPI(title="Rupee Tracker Backend")
     limiter = RateLimiter(*rate_limit)
@@ -82,6 +87,17 @@ def create_app(settings: Settings, rate_limit: tuple[int, float] = (30, 60)) -> 
             raise HTTPException(422, str(e))
         except service.LimitExceeded as e:
             raise HTTPException(409, str(e))
+
+    @app.post("/feedback", dependencies=auth)
+    def feedback(body: FeedbackIn, conn=Depends(get_conn)):
+        guard(conn, body.user_id)
+        try:
+            service.add_feedback(conn, body.user_id, body.message)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except service.LimitExceeded as e:
+            raise HTTPException(409, str(e))
+        return {"ok": True}
 
     @app.get("/today", dependencies=auth)
     def today(user_id: int, conn=Depends(get_conn)):

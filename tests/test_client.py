@@ -39,3 +39,15 @@ async def test_post_bodies():
     await c.assign_category(1, 9, 3)
     assert bodies[0][0] == "/expenses/9/category"
     assert b'"category_id":3' in bodies[0][1].replace(b" ", b"")
+
+
+async def test_feedback_posts_message():
+    seen = []
+
+    def handler(request: httpx.Request):
+        seen.append((request.url.path, request.content))
+        return httpx.Response(200, json={"ok": True})
+
+    await make(handler).feedback(3, "great")
+    assert seen[0][0] == "/feedback"
+    assert b'"message":"great"' in seen[0][1].replace(b" ", b"")
