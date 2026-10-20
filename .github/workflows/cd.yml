@@ -54,5 +54,6 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # CD is the only cache writer (runs are serialized by the concurrency group above).
+          cache-from: type=gha,scope=rupee-tracker
+          cache-to: type=gha,mode=max,scope=rupee-tracker
