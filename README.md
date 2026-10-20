@@ -24,6 +24,14 @@ python -m app.backend    # API on 127.0.0.1:8000
 python -m app.bot.main   # Telegram bot (long polling)
 ```
 
+## Run with Docker (dev)
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Starts `backend` and `bot` from `Dockerfile.dev`. The source is bind-mounted, so after a code change run `docker compose -f docker-compose.dev.yml restart`. The database is `data/rupee.db` in the repo folder (git-ignored). The backend is published on `127.0.0.1:8000` only. A production Dockerfile/compose will be added separately.
+
 ## Test
 
 ```bash
