@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: python -m app.backend
+    env_file: .env
+    environment:
+      BACKEND_HOST: 0.0.0.0
+      DB_PATH: /data/rupee.db
+    volumes:
+      - .:/app
+      - ./data:/data
+    ports:
+      # reachable from this machine only, not the LAN
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: python -m app.bot.main
+    env_file: .env
+    environment:
+      BACKEND_URL: http://backend:8000
+    volumes:
+      - .:/app
+    depends_on:
+      - backend
+    restart: unless-stopped
