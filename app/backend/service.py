@@ -1,7 +1,8 @@
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 MAX_CATEGORIES = 30
 MAX_MAPPINGS = 500
@@ -150,3 +151,82 @@ def assign_category(
                 "INSERT OR REPLACE INTO word_map VALUES (?, ?, ?)", (user_id, word, category_id)
             )
     return cat["name"]
+
+
+IST = ZoneInfo("Asia/Kolkata")
+
+
+@dataclass(frozen=True)
+class Item:
+    description: str
+    amount_paise: int
+    category: str
+
+
+@dataclass(frozen=True)
+class TodayResult:
+    items: list[Item]
+    total_paise: int
+
+
+@dataclass(frozen=True)
+class StatRow:
+    category: str
+    total_paise: int
+    percent: int
+
+
+@dataclass(frozen=True)
+class StatsResult:
+    rows: list[StatRow]
+    total_paise: int
+
+
+def _period_bounds(period: str, now_utc: datetime | None) -> tuple[str, str]:
+    now = (now_utc or datetime.now(timezone.utc)).astimezone(IST)
+    if period == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = (start + timedelta(days=32)).replace(day=1)
+    elif period == "last_month":
+        end = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start = (end - timedelta(days=1)).replace(day=1)
+    elif period == "year":
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = start.replace(year=start.year + 1)
+    elif period == "today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+    else:
+        raise ValueError(f"unknown period {period!r}")
+    return _utc_str(start), _utc_str(end)
+
+
+def today(conn: sqlite3.Connection, user_id: int, now_utc: datetime | None = None) -> TodayResult:
+    start, end = _period_bounds("today", now_utc)
+    rows = conn.execute(
+        "SELECT e.description, e.amount_paise, COALESCE(c.name, 'Uncategorized') AS category "
+        "FROM expenses e LEFT JOIN categories c ON c.id = e.category_id "
+        "WHERE e.telegram_user_id=? AND e.created_at_utc >= ? AND e.created_at_utc < ? "
+        "ORDER BY e.created_at_utc, e.id",
+        (user_id, start, end),
+    ).fetchall()
+    items = [Item(r["description"], r["amount_paise"], r["category"]) for r in rows]
+    return TodayResult(items, sum(i.amount_paise for i in items))
+
+
+def stats(
+    conn: sqlite3.Connection, user_id: int, period: str, now_utc: datetime | None = None
+) -> StatsResult:
+    start, end = _period_bounds(period, now_utc)
+    rows = conn.execute(
+        "SELECT COALESCE(c.name, 'Uncategorized') AS category, SUM(e.amount_paise) AS total "
+        "FROM expenses e LEFT JOIN categories c ON c.id = e.category_id "
+        "WHERE e.telegram_user_id=? AND e.created_at_utc >= ? AND e.created_at_utc < ? "
+        "GROUP BY category ORDER BY total DESC, category",
+        (user_id, start, end),
+    ).fetchall()
+    grand = sum(r["total"] for r in rows)
+    return StatsResult(
+        [StatRow(r["category"], r["total"], round(r["total"] * 100 / grand)) for r in rows],
+        grand,
+    )
