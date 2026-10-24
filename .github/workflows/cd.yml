@@ -73,15 +73,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
 
       - name: Deploy to server
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         run: |
+          # Heredoc is unquoted on purpose: $GHCR_PAT must expand here on the runner.
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
-            deployer@${{ secrets.TAILSCALE_SERVER_IP }} << 'ENDSSH'
+            deployer@${{ secrets.TAILSCALE_SERVER_IP }} << ENDSSH
             set -e
             cd /opt/telegram-bot
 
             echo "Logging into GHCR..."
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+            echo "$GHCR_PAT" | docker login ghcr.io -u jasjeev013 --password-stdin
 
             echo "Pulling latest image..."
             docker compose pull
