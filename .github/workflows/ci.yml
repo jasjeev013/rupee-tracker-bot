@@ -45,7 +45,8 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.dev
+          file: Dockerfile
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Read-only: only CD writes the cache. Several CI runs can overlap,
+          # and concurrent writers fail with "failed to reserve cache".
+          cache-from: type=gha,scope=rupee-tracker
