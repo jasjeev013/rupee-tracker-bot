@@ -1,0 +1,35 @@
+# Production stack. Copy to the server as /opt/telegram-bot/docker-compose.yml
+# next to a .env.production file (BOT_API_KEY, BACKEND_SECRET). Pulls the image built by cd.yml.
+#
+# No ports are published: the bot long-polls Telegram (outbound only) and reaches
+# the backend over the compose network, so nothing clashes with other apps on the host.
+x-app: &app
+  image: ghcr.io/jasjeev013/rupee-tracker-bot:latest
+  env_file: .env.production
+  restart: unless-stopped
+
+services:
+  backend:
+    <<: *app
+    container_name: rupee-tracker-backend
+    command: python -m app.backend
+    volumes:
+      - rupee-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), 2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bot:
+    <<: *app
+    container_name: rupee-tracker-bot
+    command: python -m app.bot.main
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  rupee-data:

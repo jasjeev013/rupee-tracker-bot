@@ -45,7 +45,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.dev
+          file: Dockerfile
           push: false
           # Read-only: only CD writes the cache. Several CI runs can overlap,
           # and concurrent writers fail with "failed to reserve cache".

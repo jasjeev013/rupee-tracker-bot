@@ -1,7 +1,6 @@
 name: CD
 
-# Runs only on commits to main: test first, then publish the image to GHCR.
-# Deploying to the home server is a later step.
+# Runs only on commits to main: test, publish the image to GHCR, then deploy to the home server.
 on:
   push:
     branches: [main]
@@ -24,9 +23,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    env:
-      # Switch to Dockerfile (prod) once it exists.
-      DOCKERFILE: Dockerfile.dev
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +45,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ env.DOCKERFILE }}
+          file: Dockerfile
           push: true
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
@@ -57,3 +53,45 @@ jobs:
           # CD is the only cache writer (runs are serialized by the concurrency group above).
           cache-from: type=gha,scope=rupee-tracker
           cache-to: type=gha,mode=max,scope=rupee-tracker
+
+  deploy:
+    name: Deploy to homeserver
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          args: --accept-routes
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            deployer@${{ secrets.TAILSCALE_SERVER_IP }} << 'ENDSSH'
+            set -e
+            cd /opt/telegram-bot
+
+            echo "Logging into GHCR..."
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+            echo "Pulling latest image..."
+            docker compose pull
+
+            echo "Restarting containers..."
+            docker compose up -d --remove-orphans
+
+            echo "Cleaning up old images..."
+            docker image prune -f
+
+            echo "Deployment complete!"
+            docker compose ps
+          ENDSSH
